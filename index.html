@@ -1,0 +1,694 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Restaurant Seating MVP</title>
+  <style>
+    :root {
+      --bg: #f7f7fb;
+      --panel: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --accent: #3b82f6;
+      --danger: #ef4444;
+      --success: #10b981;
+      --occupied: rgba(239, 68, 68, 0.12);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; }.app { display: grid; grid-template-rows: auto 1fr; height: 100vh; }
+header { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; z-index: 10; }
+.left, .right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.brand { font-weight: 700; letter-spacing: 0.2px; }
+.sep { width: 1px; height: 30px; background: var(--border); margin: 0 6px; }
+
+.btn { appearance: none; border: 1px solid var(--border); background: #fff; color: var(--text); padding: 8px 10px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 14px; transition: box-shadow .15s ease, transform .05s ease, border-color .15s ease; }
+.btn:hover { box-shadow: 0 1px 0 rgba(0,0,0,.03), 0 2px 12px rgba(0,0,0,.06); }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: var(--accent); color: white; border-color: var(--accent); }
+.btn.ghost { background: transparent; }
+.btn.danger { background: #fff5f5; border-color: #fecaca; color: #991b1b; }
+
+.mode-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.mode-toggle button { border: none; padding: 8px 12px; cursor: pointer; background: transparent; font-weight: 700; }
+.mode-toggle button.active { background: var(--accent); color: white; }
+
+.main { display: grid; gap: 10px; height: calc(100vh - 58px); grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; padding: 10px; }
+@media (orientation: portrait) { .main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+.panel h3 { margin: 0; padding: 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+.panel-body { padding: 10px; overflow: auto; min-height: 0; }
+.stack { display: flex; gap: 8px; flex-wrap: wrap; }
+.swatch { width: 16px; height: 16px; border-radius: 3px; display: inline-block; border: 1px solid rgba(0,0,0,.07); }
+.list { display: grid; gap: 8px; }
+.section-row { display: grid; grid-template-columns: 24px 40px 1fr auto; gap: 8px; align-items: center; border: 1px solid var(--border); padding: 8px; border-radius: 10px; background: #fff; }
+.section-row .num { font-weight: 900; text-align: center; }
+.section-row input[type="text"] { min-width: 120px; padding: 6px 8px; }
+.section-row .count { font-weight: 800; min-width: 24px; text-align: center; }
+.section-row .controls { display: inline-flex; gap: 6px; }
+
+.canvas-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; position: relative; overflow: auto; min-height: 0; }
+.canvas-wrap.panning { cursor: grabbing; }
+.spacer { width: 3200px; height: 2000px; position: relative; }
+.canvas { position: absolute; top: 0; left: 0; width: 3200px; height: 2000px; background-image: linear-gradient(0deg, transparent 24px, rgba(0,0,0,0.05) 25px), linear-gradient(90deg, transparent 24px, rgba(0,0,0,0.05) 25px); background-size: 25px 25px, 25px 25px; background-position: -1px -1px; transform-origin: 0 0; }
+
+.zoom-controls { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.9); border: 1px solid var(--border); border-radius: 10px; display: inline-flex; gap: 6px; padding: 6px; z-index: 5; }
+.zoom-controls .val { min-width: 56px; text-align: center; font-weight: 700; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+
+.table { position: absolute; border: 2px solid #11182720; border-radius: 8px; background: #fff; box-shadow: 0 1px 0 rgba(0,0,0,.03), 0 3px 12px rgba(0,0,0,.06); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; user-select: none; cursor: pointer; padding: 2px; transition: transform .05s ease, box-shadow .15s ease; touch-action: none; }
+.table .label { font-weight: 800; font-size: 12px; line-height: 1.2; }
+.table .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.table .section-tag { margin-top: 4px; padding: 2px 6px; font-size: 11px; border-radius: 999px; color: #111827; background: #f3f4f6; border: 1px solid var(--border); white-space: nowrap; }
+.table.occupied { outline: 2px dashed var(--danger); outline-offset: -4px; background-image: repeating-linear-gradient(45deg, rgba(239,68,68,0.10), rgba(239,68,68,0.10) 8px, rgba(239,68,68,0.00) 8px, rgba(239,68,68,0.00) 16px); }
+.table.dragging { opacity: 0.9; transform: scale(1.02); cursor: grabbing; z-index: 10; }
+.table.movable-focus { box-shadow: inset 0 0 0 3px var(--accent), 0 3px 12px rgba(59, 130, 246, 0.4) !important; }
+.wall {
+  background: #6b7280;
+  border: 2px solid #374151;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  z-index: 1;
+}
+
+.wall.dragging {
+  opacity: 0.8;
+  cursor: grabbing;
+  z-index: 10;
+}
+.wall-resize-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #3b82f6;
+  border: 2px solid white;
+  border-radius: 50%;
+  cursor: nwse-resize;
+  z-index: 2;
+}
+
+.wall-resize-handle.right {
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: ew-resize;
+}
+
+.wall-resize-handle.bottom {
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: ns-resize;
+}
+.wall-rotate-handle {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: #10b981;
+  border: 2px solid white;
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 2;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+.wall-rotate-handle:hover {
+  background: #059669;
+}
+dialog { border: none; border-radius: 14px; padding: 0; width: min(460px, 92vw); }
+dialog::backdrop { background: rgba(0,0,0,0.4); }
+.modal { background: #fff; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); }
+.modal header { background: #fff; position: static; border-bottom: 1px solid var(--border); }
+.modal .content { padding: 14px; display: grid; gap: 12px; }
+.field { display: grid; gap: 6px; }
+label { font-size: 13px; color: var(--muted); }
+select, input[type="text"], input[type="number"] { padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; }
+.modal .actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); }
+
+.hint { font-size: 12px; color: var(--muted); }
+.footer-note { padding: 8px 12px; font-size: 12px; color: var(--muted); }
+.pill { padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="left">
+        <div class="brand">🍽️ Restaurant Seating MVP</div>
+        <div class="sep"></div>
+        <div class="mode-toggle" id="modeToggle">
+          <button data-mode="host" class="active" title="Daily use for hosts">Host</button>
+          <button data-mode="edit" title="Edit layout">Edit Layout</button>
+        </div>
+        <div class="sep"></div>
+        <div class="mode-toggle" id="shiftToggle" title="Switch shift">
+          <button data-shift="morning" class="active">Morning</button>
+          <button data-shift="break">Break</button>
+          <button data-shift="evening">Evening</button>
+          <button data-shift="night">Night</button>
+        </div>
+        <span id="modeHelp" class="pill">Host mode: tap table to mark occupied / change section • Shift: Morning</span>
+      </div>
+      <div class="right" id="editToolbar" style="display:none">
+        <button class="btn" data-add="4x4">Add 4×4</button>
+        <button class="btn" data-add="4x6">Add 4×6</button>
+        <button class="btn" data-add="4x8">Add 4×8</button>
+        <button class="btn" id="addWall">Add Wall</button>
+        <div class="sep"></div>
+        <button class="btn" id="fitZoom">Fit</button>
+        <div class="sep"></div>
+        <button class="btn danger" id="resetLayout">Reset Layout</button>
+      </div>
+    </header><main class="main">
+  <section class="canvas-wrap" id="canvasWrap">
+    <div class="zoom-controls">
+      <button class="btn" id="zoomOut">−</button>
+      <div class="val" id="zoomVal">100%</div>
+      <button class="btn" id="zoomIn">+</button>
+    </div>
+    <div id="spacer" class="spacer">
+        <div id="canvas" class="canvas" aria-label="Dining room canvas"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="sectionPanel">
+    <h3>Sections & Tallies</h3>
+    <div class="panel-body">
+      <div class="stack" style="margin-bottom:10px">
+        <button class="btn" id="clearTallies">Clear tallies</button>
+        <span class="hint">Tallies are manual (+/−). Each shift keeps its own counts and server names.</span>
+      </div>
+      <div id="sectionsList" class="list"></div>
+    </div>
+    <div class="footer-note">Tip: Layout is shared across shifts. Sections, server names, tallies, and occupancy are per-shift.</div>
+  </section>
+</main>
+
+  </div>  <!-- Modals -->  <dialog id="tableHostDialog">
+    <div class="modal">
+      <header><h3 style="padding:12px">Table Actions</h3></header>
+      <div class="content">
+        <div class="field"><label>Table</label><div id="hostDialogTableName" style="font-weight:800"></div></div>
+        <div class="field">
+          <label>Status</label>
+          <select id="hostDialogStatus">
+            <option value="unoccupied">Unoccupied</option>
+            <option value="occupied">Occupied (visual only)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Section</label>
+          <select id="hostDialogSection"></select>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="hostCancel">Cancel</button>
+        <button class="btn primary" id="hostSave">Save</button>
+      </div>
+    </div>
+  </dialog>  <dialog id="tableEditDialog">
+    <div class="modal">
+      <header><h3 style="padding:12px">Edit Table</h3></header>
+      <div class="content">
+        <div class="field"><label>Table name/number</label><input type="text" id="editName" maxlength="10" /></div>
+        <div class="field"><label>Move</label><button class="btn" id="beginMove">Move table (drag)</button><span class="hint">Close this dialog, then drag the highlighted table. It snaps to grid.</span></div>
+        <div class="field"><label>Rotate</label><button class="btn" id="rotateTable">Rotate 90°</button></div>
+        <div class="field"><label>Duplicate</label><button class="btn" id="duplicateTable">Duplicate table</button></div>
+        <div class="field"><label>Danger zone</label><button class="btn danger" id="deleteTable">Delete table</button></div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="editCancel">Cancel</button>
+        <button class="btn primary" id="editSave">Save</button>
+      </div>
+    </div>
+  </dialog>  <script>
+  (function(){
+    const STORAGE_KEY = 'restaurant-seating-mvp-v6';
+    const OLD_KEYS = ['restaurant-seating-mvp-v5','restaurant-seating-mvp-v4'];
+    const CANVAS_W = 3200;
+    const CANVAS_H = 2000;
+
+    const sectionColors = [
+      '#9CA3AF',
+      '#60A5FA', '#34D399', '#F472B6', '#FBBF24', '#A78BFA', '#F87171', '#22D3EE', '#4ADE80', '#F59E0B',
+      '#818CF8', '#FB7185', '#2DD4BF', '#93C5FD', '#FCA5A5', '#86EFAC'
+    ];
+
+    const defaultShiftState = () => ({
+      tallies: Object.fromEntries(Array.from({length:16}, (_,i)=>[String(i), 0])),
+      serverNames: Object.fromEntries(Array.from({length:16}, (_,i)=>[String(i), ''])),
+      tableSections: {}, // tableId -> section number (0..15)
+      occupancy: {},     // tableId -> boolean
+    });
+
+    function defaultState(){
+      return {
+        mode: 'host',
+        zoom: 1,
+        activeShift: 'morning',
+        layout: [],
+        walls: [],
+        shifts: { morning: defaultShiftState(), break: defaultShiftState(), evening: defaultShiftState(), night: defaultShiftState() },
+        moveLockId: null,
+      };
+    }
+
+    function migrate(){
+      for (const key of OLD_KEYS){
+        try {
+          const old = JSON.parse(localStorage.getItem(key));
+          if (!old) continue;
+          if (old.layout && old.shifts) return old; // v5
+          if (old.tables) { // v4
+            const ns = defaultState(); ns.zoom = Math.min(1, old.zoom || 1);
+            ns.layout = old.tables.map(t=>({ id: t.id || crypto.randomUUID(), x: t.x, y: t.y, w: t.w, h: t.h, name: t.name }));
+            ['morning','break','evening','night'].forEach(sh => {
+              ns.shifts[sh].tallies = {...old.tallies};
+              old.tables.forEach(t => { const id = t.id; ns.shifts[sh].tableSections[id] = Number(t.section)||0; ns.shifts[sh].occupancy[id] = !!t.occupied; });
+            });
+            return ns;
+          }
+        } catch {}
+      }
+      return null;
+    }
+
+    function loadState(){ try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; } }
+    function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+    let state = loadState() || migrate() || defaultState();
+    if (!Array.isArray(state.walls)) state.walls = [];
+
+    const els = {
+      modeToggle: document.getElementById('modeToggle'),
+      shiftToggle: document.getElementById('shiftToggle'),
+      modeHelp: document.getElementById('modeHelp'),
+      editToolbar: document.getElementById('editToolbar'),
+      canvasWrap: document.getElementById('canvasWrap'),
+      spacer: document.getElementById('spacer'),
+      canvas: document.getElementById('canvas'),
+      sectionsList: document.getElementById('sectionsList'),
+      clearTallies: document.getElementById('clearTallies'),
+      resetLayout: document.getElementById('resetLayout'),
+      fitZoom: document.getElementById('fitZoom'),
+      zoomOut: document.getElementById('zoomOut'),
+      zoomIn: document.getElementById('zoomIn'),
+      zoomVal: document.getElementById('zoomVal'),
+      addWall: document.getElementById('addWall'),
+      hostDlg: document.getElementById('tableHostDialog'),
+      hostName: document.getElementById('hostDialogTableName'),
+      hostStatus: document.getElementById('hostDialogStatus'),
+      hostSection: document.getElementById('hostDialogSection'),
+      hostCancel: document.getElementById('hostCancel'),
+      hostSave: document.getElementById('hostSave'),
+      editDlg: document.getElementById('tableEditDialog'),
+      editName: document.getElementById('editName'),
+      beginMove: document.getElementById('beginMove'),
+      rotateTable: document.getElementById('rotateTable'),
+      duplicateTable: document.getElementById('duplicateTable'),
+      deleteTable: document.getElementById('deleteTable'),
+      editCancel: document.getElementById('editCancel'),
+      editSave: document.getElementById('editSave'),
+    };
+
+    function snap(n, grid=25){ return Math.round(n / grid) * grid; }
+    function nextName(){ const base = 'T'; let i = state.layout.length + 1; let name = base + i; const names = new Set(state.layout.map(t=>t.name)); while (names.has(name)) { i++; name = base + i; } return name; }
+    function sizeToPixels(size){ const [w,h] = size.split('x').map(Number); return { w: w*25, h: h*25 }; }
+    function sectionLabel(sec){ const n = Number(sec); return n===0 ? 'Unassigned' : `Section ${n}`; }
+    function ensureInCanvas(t){ const maxX = CANVAS_W - t.w; const maxY = CANVAS_H - t.h; t.x = Math.min(Math.max(0, t.x), maxX); t.y = Math.min(Math.max(0, t.y), maxY); }
+    function curShift(){ return state.shifts[state.activeShift]; }
+
+    function render(){
+      // toggles/help
+      for (const btn of els.modeToggle.querySelectorAll('button')) { btn.classList.toggle('active', btn.dataset.mode === state.mode); }
+      for (const btn of els.shiftToggle.querySelectorAll('button')) { btn.classList.toggle('active', btn.dataset.shift === state.activeShift); }
+      els.editToolbar.style.display = state.mode === 'edit' ? 'flex' : 'none';
+      els.modeHelp.textContent = (state.mode === 'host' ? 'Host mode: tap a table to set occupied / change section' : 'Edit mode: add / move / rename / rotate / delete tables') + ` • Shift: ${state.activeShift[0].toUpperCase()+state.activeShift.slice(1)}`;
+
+      // zoom: scale the canvas and grow the scrollable area via the spacer
+      els.canvas.style.transform = `scale(${state.zoom})`;
+      els.spacer.style.width = (CANVAS_W * state.zoom) + 'px';
+      els.spacer.style.height = (CANVAS_H * state.zoom) + 'px';
+      els.zoomVal.textContent = Math.round(state.zoom*100) + '%';
+
+      // sections panel
+      renderSections();
+
+      // canvas tables
+      els.canvas.innerHTML = '';
+     // Render walls
+    var walls = Array.isArray(state.walls) ? state.walls : [];
+    for (var wi = 0; wi < walls.length; wi++) {
+    var w = walls[wi];
+
+    var wallEl = document.createElement('div');
+    wallEl.className = 'wall';
+    wallEl.style.position = 'absolute';
+    wallEl.style.left = (w.x || 0) + 'px';
+    wallEl.style.top = (w.y || 0) + 'px';
+    wallEl.style.width = (w.w || 200) + 'px';
+    wallEl.style.height = (w.h || 10) + 'px';
+    wallEl.style.transform = 'rotate(' + (w.rot || 0) + 'deg)';
+    wallEl.style.cursor = (state.mode === 'edit') ? 'move' : 'default';
+
+    if (state.mode === 'edit') {
+        // Add resize handles
+        var handleRight = document.createElement('div');
+        handleRight.className = 'wall-resize-handle right';
+        wallEl.appendChild(handleRight);
+
+        var handleBottom = document.createElement('div');
+        handleBottom.className = 'wall-resize-handle bottom';
+        wallEl.appendChild(handleBottom);
+
+        // ADD THIS HERE - Rotate handle
+        var handleRotate = document.createElement('div');
+        handleRotate.className = 'wall-rotate-handle';
+        handleRotate.title = 'Click to rotate 90°';
+        wallEl.appendChild(handleRotate);
+
+        // Rotate functionality
+        (function(handle, w) {
+        handle.addEventListener('click', function(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            w.rot = (w.rot || 0) + 90;
+            if (w.rot >= 360) w.rot = 0;
+            saveState();
+            render();
+        });
+        })(handleRotate, w);
+
+        // Wall drag functionality
+        (function (wallEl, w) {
+        var dragging = false, pid = null, sx = 0, sy = 0, ox = 0, oy = 0;
+        var wasDragged = false;
+
+        wallEl.addEventListener('pointerdown', function (ev) {
+            // Don't drag if clicking on resize handle
+            if (ev.target.classList.contains('wall-resize-handle')) return;
+            
+            ev.preventDefault();
+            dragging = true; 
+            wasDragged = false;
+            pid = ev.pointerId;
+            sx = ev.clientX; sy = ev.clientY;
+            ox = w.x || 0; oy = w.y || 0;
+            wallEl.setPointerCapture(pid);
+            wallEl.classList.add('dragging');
+        }, { passive: false });
+
+        wallEl.addEventListener('pointermove', function (ev) {
+            if (!dragging || ev.pointerId !== pid) return;
+            var dx = (ev.clientX - sx) / state.zoom;
+            var dy = (ev.clientY - sy) / state.zoom;
+            
+            // If moved more than a few pixels, mark as dragged
+            if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+            wasDragged = true;
+            }
+            
+            w.x = ox + dx; w.y = oy + dy;
+            wallEl.style.left = w.x + 'px';
+            wallEl.style.top  = w.y + 'px';
+        });
+
+        function endDrag(ev) {
+            if (!dragging || ev.pointerId !== pid) return;
+            dragging = false;
+            wallEl.releasePointerCapture(pid);
+            wallEl.classList.remove('dragging');
+            saveState();
+        }
+
+        wallEl.addEventListener('pointerup', endDrag);
+        wallEl.addEventListener('pointercancel', endDrag);
+
+        // Delete wall on click (only if not dragged)
+        wallEl.addEventListener('click', function(ev) {
+            if (ev.target.classList.contains('wall-resize-handle')) return;
+            if (wasDragged) {
+            wasDragged = false;
+            return;
+            }
+            ev.stopPropagation();
+            if (confirm('Delete this wall?')) {
+            state.walls = state.walls.filter(function(wall) { return wall.id !== w.id; });
+            saveState();
+            render();
+            }
+        });
+        })(wallEl, w);
+
+        // Resize functionality for right handle (width)
+        (function(handle, w, wallEl) {
+        var resizing = false, pid = null, startX = 0, startW = 0;
+
+        handle.addEventListener('pointerdown', function(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            resizing = true;
+            pid = ev.pointerId;
+            startX = ev.clientX;
+            startW = w.w || 200;
+            handle.setPointerCapture(pid);
+        }, { passive: false });
+
+        handle.addEventListener('pointermove', function(ev) {
+            if (!resizing || ev.pointerId !== pid) return;
+            var dx = (ev.clientX - startX) / state.zoom;
+            w.w = Math.max(25, startW + dx);
+            wallEl.style.width = w.w + 'px';
+        });
+
+        function endResize(ev) {
+            if (!resizing || ev.pointerId !== pid) return;
+            resizing = false;
+            handle.releasePointerCapture(pid);
+            saveState();
+        }
+
+        handle.addEventListener('pointerup', endResize);
+        handle.addEventListener('pointercancel', endResize);
+        })(handleRight, w, wallEl);
+
+        // Resize functionality for bottom handle (height)
+        (function(handle, w, wallEl) {
+        var resizing = false, pid = null, startY = 0, startH = 0;
+
+        handle.addEventListener('pointerdown', function(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            resizing = true;
+            pid = ev.pointerId;
+            startY = ev.clientY;
+            startH = w.h || 10;
+            handle.setPointerCapture(pid);
+        }, { passive: false });
+
+        handle.addEventListener('pointermove', function(ev) {
+            if (!resizing || ev.pointerId !== pid) return;
+            var dy = (ev.clientY - startY) / state.zoom;
+            w.h = Math.max(5, startH + dy);
+            wallEl.style.height = w.h + 'px';
+        });
+
+        function endResize(ev) {
+            if (!resizing || ev.pointerId !== pid) return;
+            resizing = false;
+            handle.releasePointerCapture(pid);
+            saveState();
+        }
+
+        handle.addEventListener('pointerup', endResize);
+        handle.addEventListener('pointercancel', endResize);
+        })(handleBottom, w, wallEl);
+    }
+
+    els.canvas.appendChild(wallEl);
+  }
+  
+      const overlay = curShift();
+      state.layout.forEach((t)=>{
+        const sec = Number(overlay.tableSections[t.id]||0);
+        const occupied = !!overlay.occupancy[t.id];
+
+        const div = document.createElement('div');
+        div.className = 'table' + (occupied ? ' occupied' : '');
+        div.style.left = t.x + 'px';
+        div.style.top = t.y + 'px';
+        div.style.width = t.w + 'px';
+        div.style.height = t.h + 'px';
+        const secColor = sectionColors[sec||0];
+        if (sec !== 0){ div.style.boxShadow = `inset 0 0 0 3px ${secColor}20, 0 3px 12px rgba(0,0,0,.06)`; }
+
+        const label = document.createElement('div'); label.className = 'label'; label.textContent = t.name; div.appendChild(label);
+        const sub = document.createElement('div'); sub.className = 'sub'; sub.textContent = occupied ? 'Occupied' : 'Available'; div.appendChild(sub);
+        const tag = document.createElement('div'); tag.className = 'section-tag'; tag.textContent = sectionLabel(sec); tag.style.borderColor = secColor + '80'; tag.style.background = secColor + '20'; div.appendChild(tag);
+
+        if (state.mode==='edit' && state.moveLockId && state.moveLockId === t.id){ div.classList.add('movable-focus'); }
+
+        let dragged = false;
+        div.addEventListener('click', (e)=>{
+          if (dragged) { dragged = false; return; }
+          e.stopPropagation();
+          if (state.mode === 'host') openHostDialog(t.id);
+          else if (state.mode === 'edit') openEditDialog(t.id);
+        });
+
+        if (state.mode === 'edit') {
+          let dragging = false; let sx=0, sy=0, ox=0, oy=0; let thresholdHit = false;
+          div.addEventListener('pointerdown', (ev)=>{
+            if (state.moveLockId && state.moveLockId !== t.id) return;
+            ev.preventDefault(); dragging = true; thresholdHit = false; div.setPointerCapture(ev.pointerId);
+            sx = ev.clientX; sy = ev.clientY; ox = t.x; oy = t.y; div.classList.add('dragging');
+          }, { passive: false });
+          div.addEventListener('pointermove', (ev)=>{
+            if (!dragging) return;
+            const dxRaw = ev.clientX - sx; const dyRaw = ev.clientY - sy;
+            if (!thresholdHit && (Math.abs(dxRaw) > 3 || Math.abs(dyRaw) > 3)) { thresholdHit = true; }
+            const dx = dxRaw / state.zoom; const dy = dyRaw / state.zoom;
+            t.x = snap(ox + dx); t.y = snap(oy + dy); ensureInCanvas(t);
+            div.style.left = t.x + 'px'; div.style.top = t.y + 'px';
+          });
+          div.addEventListener('pointerup', (ev)=>{
+            if (!dragging) return; dragging = false; div.releasePointerCapture(ev.pointerId); div.classList.remove('dragging');
+            if (state.moveLockId === t.id) state.moveLockId = null;
+            if (thresholdHit) { dragged = true; }
+            saveState();
+          });
+        }
+
+        els.canvas.appendChild(div);
+      });
+    }
+
+    function renderSections(){
+      const sh = curShift();
+      els.sectionsList.innerHTML = '';
+      for (let i=1; i<=15; i++){
+        const row = document.createElement('div'); row.className = 'section-row';
+        const sw = document.createElement('span'); sw.className = 'swatch'; sw.style.background = sectionColors[i];
+        const num = document.createElement('div'); num.className = 'num'; num.textContent = i;
+        const nameWrap = document.createElement('div');
+        const input = document.createElement('input'); input.type = 'text'; input.placeholder = 'Server name'; input.value = sh.serverNames[String(i)] || '';
+        input.addEventListener('input', ()=>{ sh.serverNames[String(i)] = input.value; saveState(); });
+        nameWrap.appendChild(input);
+        const right = document.createElement('div'); right.className = 'controls';
+        const minus = document.createElement('button'); minus.className = 'btn'; minus.textContent = '−'; minus.title = 'Remove 1';
+        const count = document.createElement('div'); count.className = 'count'; count.textContent = sh.tallies[String(i)] || 0;
+        const plus = document.createElement('button'); plus.className = 'btn'; plus.textContent = '+'; plus.title = 'Add 1';
+        minus.addEventListener('click', () => { sh.tallies[String(i)] = Math.max(0, (sh.tallies[String(i)]||0)-1); saveState(); renderSections(); });
+        plus.addEventListener('click', () => { sh.tallies[String(i)] = (sh.tallies[String(i)]||0)+1; saveState(); renderSections(); });
+        right.append(minus, count, plus);
+        row.append(sw, num, nameWrap, right); els.sectionsList.appendChild(row);
+      }
+    }
+
+    // Add / remove tables
+    function addTable(size){
+      const {w,h} = sizeToPixels(size);
+      // center at current viewport
+      const wrap = els.canvasWrap; const viewW = wrap.clientWidth; const viewH = wrap.clientHeight;
+      const cx = wrap.scrollLeft / state.zoom + (viewW / state.zoom) / 2;
+      const cy = wrap.scrollTop / state.zoom + (viewH / state.zoom) / 2;
+      const t = { id: crypto.randomUUID(), x: snap(cx - w/2), y: snap(cy - h/2), w, h, name: nextName() };
+      ensureInCanvas(t); state.layout.push(t);
+      for (const k of Object.keys(state.shifts)){ state.shifts[k].tableSections[t.id] = 0; state.shifts[k].occupancy[t.id] = false; }
+      state.moveLockId = (state.mode === 'edit') ? t.id : null;
+      saveState(); render();
+      const targetLeft = Math.max(0, (t.x + t.w/2) * state.zoom - viewW/2);
+      const targetTop  = Math.max(0, (t.y + t.h/2) * state.zoom - viewH/2);
+      wrap.scrollTo({ left: targetLeft, top: targetTop, behavior: 'smooth' });
+    }
+    function getTable(id){ return state.layout.find(t=>t.id===id); }
+    function removeTable(id){ state.layout = state.layout.filter(t=>t.id!==id); for (const k of Object.keys(state.shifts)){ delete state.shifts[k].tableSections[id]; delete state.shifts[k].occupancy[id]; } saveState(); render(); }
+
+    // Dialogs
+    let activeTableId = null;
+    function buildSectionOptions(selectEl, current){ selectEl.innerHTML = ''; const opt0 = new Option('Unassigned (no color)', '0'); selectEl.add(opt0); for (let i=1;i<=15;i++){ const opt = new Option(String(i), String(i)); selectEl.add(opt); } selectEl.value = String(current||0); }
+    function openHostDialog(id){ activeTableId = id; const t = getTable(id); if (!t) return; const ov = curShift(); const sec = Number(ov.tableSections[id]||0); els.hostName.textContent = `${t.name}`; els.hostStatus.value = ov.occupancy[id] ? 'occupied' : 'unoccupied'; buildSectionOptions(els.hostSection, sec); els.hostDlg.showModal(); }
+    function openEditDialog(id){ activeTableId = id; const t = getTable(id); if (!t) return; els.editName.value = t.name; els.editDlg.showModal(); }
+
+    els.hostCancel.addEventListener('click', ()=> els.hostDlg.close());
+    els.hostSave.addEventListener('click', ()=>{ const t = getTable(activeTableId); if (!t) return; const ov = curShift(); ov.occupancy[t.id] = (els.hostStatus.value === 'occupied'); ov.tableSections[t.id] = Number(els.hostSection.value); saveState(); render(); els.hostDlg.close(); });
+
+    els.editCancel.addEventListener('click', ()=> { state.moveLockId = null; els.editDlg.close(); render(); });
+    els.editSave.addEventListener('click', ()=>{ const t = getTable(activeTableId); if (!t) return; t.name = els.editName.value.trim() || t.name; saveState(); render(); els.editDlg.close(); });
+    els.beginMove.addEventListener('click', ()=>{ state.moveLockId = activeTableId; els.editDlg.close(); render(); });
+    els.rotateTable.addEventListener('click', ()=>{ const t = getTable(activeTableId); if (!t) return; const nw = t.h; const nh = t.w; t.w = nw; t.h = nh; ensureInCanvas(t); saveState(); render(); });
+    els.duplicateTable.addEventListener('click', ()=>{ const src=getTable(activeTableId); if(!src)return; const dup={id:crypto.randomUUID(),x:snap(src.x+25),y:snap(src.y+25),w:src.w,h:src.h,name:nextName()}; ensureInCanvas(dup); state.layout.push(dup); for(const k of Object.keys(state.shifts)){const sh=state.shifts[k]; sh.tableSections[dup.id]=Number(sh.tableSections[src.id]||0); sh.occupancy[dup.id]=sh.occupancy[src.id]||false;} state.moveLockId=dup.id; saveState(); render(); els.editDlg.close(); });
+    els.deleteTable.addEventListener('click', ()=>{ if (!confirm('Delete this table?')) return; removeTable(activeTableId); els.editDlg.close(); });
+
+    // Mode & Shift toggles
+    els.modeToggle.addEventListener('click', (e)=>{ const btn = e.target.closest('button'); if (!btn) return; state.mode = btn.dataset.mode; state.moveLockId = null; saveState(); render(); });
+    els.shiftToggle.addEventListener('click', (e)=>{ const btn = e.target.closest('button'); if (!btn) return; state.activeShift = btn.dataset.shift; state.moveLockId = null; saveState(); render(); });
+
+    // Tallies
+    els.clearTallies.addEventListener('click', ()=>{ if (!confirm('Clear all tallies for this shift?')) return; const sh = curShift(); for (let i=0;i<=15;i++){ sh.tallies[String(i)] = 0; } saveState(); renderSections(); });
+
+    // Reset layout
+    els.resetLayout.addEventListener('click', ()=>{ if (!confirm('Reset layout? This removes all tables. Tallies remain per shift.')) return; state.layout = []; for (const k of Object.keys(state.shifts)){ state.shifts[k].tableSections = {}; state.shifts[k].occupancy = {}; } saveState(); render(); });
+
+    // Zoom controls (25–125%) + keep center during zoom
+    function setZoom(z){
+      const wrap = els.canvasWrap.getBoundingClientRect();
+      const cx = (els.canvasWrap.scrollLeft + wrap.width/2) / state.zoom;
+      const cy = (els.canvasWrap.scrollTop + wrap.height/2) / state.zoom;
+      state.zoom = Math.min(1.25, Math.max(0.25, Math.round(z*100)/100));
+      saveState(); render();
+      els.canvasWrap.scrollLeft = Math.max(0, cx * state.zoom - wrap.width/2);
+      els.canvasWrap.scrollTop  = Math.max(0, cy * state.zoom - wrap.height/2);
+    }
+    els.zoomOut.addEventListener('click', ()=> setZoom(state.zoom - 0.1));
+    els.zoomIn.addEventListener('click', ()=> setZoom(state.zoom + 0.1));
+    els.fitZoom.addEventListener('click', ()=>{ const wrap = els.canvasWrap.getBoundingClientRect(); const scaleX = (wrap.width - 20) / CANVAS_W; const scaleY = (wrap.height - 20) / CANVAS_H; setZoom(Math.max(0.25, Math.min(1.25, Math.min(scaleX, scaleY)))); });
+
+    // Drag-to-pan on empty space
+    (function(){
+      let panning = false, pid = null, sx=0, sy=0, sl=0, st=0;
+      els.spacer.addEventListener('pointerdown', (ev)=>{
+        if (ev.target !== els.spacer && ev.target !== els.canvas) return;
+        panning = true; pid = ev.pointerId; els.spacer.setPointerCapture(pid);
+        sx = ev.clientX; sy = ev.clientY; sl = els.canvasWrap.scrollLeft; st = els.canvasWrap.scrollTop;
+        els.canvasWrap.classList.add('panning');
+      });
+      els.spacer.addEventListener('pointermove', (ev)=>{
+        if (!panning || ev.pointerId !== pid) return;
+        els.canvasWrap.scrollLeft = sl - (ev.clientX - sx);
+        els.canvasWrap.scrollTop  = st - (ev.clientY - sy);
+      });
+      function endPan(ev){ if (!panning || (ev && ev.pointerId !== pid)) return; panning = false; if(pid) els.spacer.releasePointerCapture(pid); els.canvasWrap.classList.remove('panning'); }
+      els.spacer.addEventListener('pointerup', endPan);
+      els.spacer.addEventListener('pointercancel', endPan);
+      els.spacer.addEventListener('pointerleave', endPan);
+    })();
+
+    // Background click closes dialogs and clears move lock
+    els.canvas.addEventListener('click', ()=>{ if (els.tableHostDialog?.open) els.tableHostDialog.close(); if (els.tableEditDialog?.open) els.tableEditDialog.close(); state.moveLockId = null; render(); });
+
+    document.querySelectorAll('[data-add]').forEach(btn=>{
+        btn.addEventListener('click', ()=> addTable(btn.dataset.add));
+    });
+    // Add Wall button logic
+    els.addWall.addEventListener('click', () => {
+    const wall = {
+        id: crypto.randomUUID(),
+        type: 'wall',
+        x: 100,
+        y: 100,
+        w: 200,   // default length
+        h: 10,    // default thickness
+        rot: 0
+    };
+    state.walls.push(wall);
+    saveState();
+    render();
+    });
+    render();
+  })();
+  </script></body>
+</html>
+
