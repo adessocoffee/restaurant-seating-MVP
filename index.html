@@ -133,6 +133,28 @@ select, input[type="text"], input[type="number"] { padding: 8px 10px; border: 1p
   </style>
 </head>
 <body>
+   <script>
+  (function() {
+    const correctPassword = "host2025"; // Change this to whatever password you want
+    const stored = sessionStorage.getItem('authenticated');
+    
+    if (!stored) {
+      const password = prompt('Enter password to access Restaurant Seating:');
+      if (password !== correctPassword) {
+        alert('Incorrect password. Access denied.');
+        document.body.innerHTML = '<h1 style="text-align:center; margin-top: 100px;">Access Denied</h1>';
+        throw new Error('Authentication failed');
+      } else {
+        sessionStorage.setItem('authenticated', 'true');
+      }
+    }
+  })();
+  </script>
+  
+  <div class="app">
+    <header>
+      <div class="left">
+        <div class="brand">🍽️ Restaurant Seating MVP</div>  
   <div class="app">
     <header>
       <div class="left">
